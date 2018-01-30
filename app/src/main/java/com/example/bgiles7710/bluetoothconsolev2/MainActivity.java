@@ -73,14 +73,14 @@ public class MainActivity extends AppCompatActivity {
     //establishes bluetooth socket connection with the device.
     public void BTConnect(View v) throws IOException {
         //get device UUID
-        pairedDevices = BA.getBondedDevices();
-        for(BluetoothDevice bt : pairedDevices){
-            if(bt.getName() == "HC-06"){
-                TachUUID = bt.getUuids()[0].getUuid();
-            }
-        }
+//        pairedDevices = BA.getBondedDevices();
+//        for(BluetoothDevice bt : pairedDevices){
+//            if(bt.getName() == "HC-06"){
+//                TachUUID = bt.getUuids()[0].getUuid();
+//            }
+//        }
+        TachUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
         BluetoothServerSocket BSS = BA.listenUsingInsecureRfcommWithServiceRecord("HC-06", TachUUID);
-        BSS.accept();
 
         try{
             Log.d((String)this.getTitle(),"attempting to get input and output streams");

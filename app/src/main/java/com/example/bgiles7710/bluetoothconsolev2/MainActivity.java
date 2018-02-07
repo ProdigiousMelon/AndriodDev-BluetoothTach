@@ -1,9 +1,11 @@
 package com.example.bgiles7710.bluetoothconsolev2;
 
+import android.os.Handler;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -29,13 +31,22 @@ public class MainActivity extends AppCompatActivity {
     //global variables
     Button btnFPS;
     private BluetoothAdapter BA;
+    BluetoothSocket mmSocket;
     private Set<BluetoothDevice>pairedDevices;
+    BluetoothDevice mmDevice;
     ListView lv;
     public UUID TachUUID;
     public byte [] buffer = new byte[256];
     public int bytes;
     public String btMessage = null;
     TextView display;
+    Thread workerThread;
+    byte[] readBuffer;
+    int readBufferPosition;
+    int counter;
+    volatile boolean stopWorker;
+    OutputStream mmOutputStream;
+    InputStream mmInputStream;
 
 
     @Override
@@ -72,33 +83,127 @@ public class MainActivity extends AppCompatActivity {
 
     //establishes bluetooth socket connection with the device.
     public void BTConnect(View v) throws IOException {
-        //get device UUID
-//        pairedDevices = BA.getBondedDevices();
-//        for(BluetoothDevice bt : pairedDevices){
-//            if(bt.getName() == "HC-06"){
-//                TachUUID = bt.getUuids()[0].getUuid();
-//            }
-//        }
-        TachUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
-        BluetoothServerSocket BSS = BA.listenUsingInsecureRfcommWithServiceRecord("HC-06", TachUUID);
-
         try{
-            Log.d((String)this.getTitle(),"attempting to get input and output streams");
-            InputStream tmpIn = null;
-            OutputStream tmpOut = null;
-
-            DataInputStream mmInStream = new DataInputStream(tmpIn);
-            DataOutputStream mmOutStream = new DataOutputStream(tmpOut);
-
-            bytes = mmInStream.read(buffer);
-            btMessage = new String(buffer, 0, bytes);
-
-            display.setText(btMessage);
+            findBT();
+            openBT();
         }
         catch (Exception e){
             Log.d((String)this.getTitle(),"Error getting datastream: " + e);
         }
 
+    }
+
+    public void openBT() throws IOException{
+        TachUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+        //BluetoothServerSocket BSS = BA.listenUsingInsecureRfcommWithServiceRecord("HC-06", TachUUID);
+        mmSocket = mmDevice.createRfcommSocketToServiceRecord(TachUUID);
+        mmSocket.connect();
+
+        display.setText("Bluetooth Open");
+        beginListenForData();
+    }
+    void findBT()
+    {
+        BA = BluetoothAdapter.getDefaultAdapter();
+        if(BA == null)
+        {
+            display.setText("No bluetooth adapter available");
+        }
+
+        if(!BA.isEnabled())
+        {
+            Intent enableBluetooth = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBluetooth, 0);
+        }
+
+        pairedDevices = BA.getBondedDevices();
+        if(pairedDevices.size() > 0)
+        {
+            for(BluetoothDevice device : pairedDevices)
+            {
+                if(device.getName().equals("HC-06"))
+                {
+                    mmDevice = device;
+                    break;
+                }
+            }
+        }
+        display.setText("Bluetooth Device Found");
+    }
+
+    void beginListenForData() throws IOException {
+        mmInputStream = mmSocket.getInputStream();
+        byte[] buffer = new byte[1024];
+        int bytes;
+
+        while(true){
+            try{
+                bytes = mmInputStream.read(buffer);
+                String readMessage = new String(buffer,0,bytes);
+                display.setText(readMessage);
+            }
+            catch(IOException e){
+                Log.i("logging", ": from read loop: " + e);
+                break;
+            }
+        }
+
+        /*
+        final Handler handler = new Handler();
+        final byte delimiter = 10; //This is the ASCII code for a newline character
+
+        stopWorker = false;
+        readBufferPosition = 0;
+        readBuffer = new byte[1024];
+
+
+        workerThread = new Thread(new Runnable()
+        {
+            public void run()
+            {
+                while(!Thread.currentThread().isInterrupted() && !stopWorker)
+                {
+                    try
+                    {
+                        int bytesAvailable = mmInputStream.available();
+                        if(bytesAvailable > 0)
+                        {
+                            byte[] packetBytes = new byte[bytesAvailable];
+                            mmInputStream.read(packetBytes);
+                            for(int i=0;i<bytesAvailable;i++)
+                            {
+                                byte b = packetBytes[i];
+                                if(b == delimiter)
+                                {
+                                    byte[] encodedBytes = new byte[readBufferPosition];
+                                    System.arraycopy(readBuffer, 0, encodedBytes, 0, encodedBytes.length);
+                                    final String data = new String(encodedBytes, "US-ASCII");
+                                    readBufferPosition = 0;
+
+                                    handler.post(new Runnable()
+                                    {
+                                        public void run()
+                                        {
+                                            display.setText(data);
+                                        }
+                                    });
+                                }
+                                else
+                                {
+                                    readBuffer[readBufferPosition++] = b;
+                                }
+                            }
+                        }
+                    }
+                    catch (IOException ex)
+                    {
+                        stopWorker = true;
+                    }
+                }
+            }
+        });
+        workerThread.start();
+        */
     }
 
 
